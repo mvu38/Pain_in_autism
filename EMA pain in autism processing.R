@@ -184,9 +184,9 @@ control_ema_summary$group <- "control"
 hist(control_ema_summary$age)
 
 # RECODE GENDER (in the control sample, coding was different): 1 = woman, 2 = man, 3 = gender-diverse
-control_ema_summary$gender <- ifelse(control_ema_summary$gender==1,2,
-                                           ifelse(control_ema_summary$gender==2,1,3))
-control_ema_summary$gender <- ifelse(is.na(control_ema_summary$gender),3,control_ema_summary$gender)
+control_ema_summary$gender <- ifelse(control_ema_summary$gender==1,"boy",
+                                           ifelse(control_ema_summary$gender==2,"girl","TGD"))
+control_ema_summary$gender <- ifelse(is.na(control_ema_summary$gender),"TGD",control_ema_summary$gender)
 
 # in ASD data, parse pains to match the control sample
 ema_summary <- ema_summary %>%
@@ -250,6 +250,10 @@ asd_ema_wide$symptom_intensity_mean_mean <- NA
 control_ema_summary$meddx_sum.1 <- NA
 control_ema_summary$meddx_CP.1 <- NA
 all_ema_summary <- rbind(asd_ema_wide,control_ema_summary)
+
+# compute centralized age for controls and ASD without illness
+all_ema_summary$age_cent <- ifelse(all_ema_summary$group=="control" | (all_ema_summary$group=="autism" & all_ema_summary$meddx_sum.1 ==0),
+                                   all_ema_summary$age - mean(all_ema_summary[all_ema_summary$group=="control" | (all_ema_summary$group=="autism" & all_ema_summary$meddx_sum.1 ==0), "age"],na.rm=TRUE),NA)
 
 # save file for analyses in SPSS
 write.csv(all_ema_summary,"asd to control comparison.csv")
