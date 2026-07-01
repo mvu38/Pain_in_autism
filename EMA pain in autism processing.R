@@ -56,7 +56,7 @@ ema_summary$n_of_symptoms <- rowSums(ema_summary[,c("faint_dizzy_max","tachycard
 ema_summary_pp <- ema_summary %>%
   group_by(record_id) %>%
   summarize_at(vars(pain_bin,symptoms_bin,pain_intensity_max_mean,pain_interference_max_mean,
-                    n_of_pains_prompt_mean),
+                    n_of_pains,n_of_symptoms),
                list(sum = ~sum(.,na.rm=TRUE),
                     mean = ~mean(.,na.rm=TRUE),
                     n = ~sum(!is.na(.x))))
@@ -283,7 +283,6 @@ ema_summary_pp$days_with_symp_s <- ifelse(ema_summary_pp$symptoms_bin_sum ==0, "
 ema_summary_pp$days_with_pain_s <- factor(ema_summary_pp$days_with_pain_s,levels=c("no pain","1-4","5-8","9-12","all the time"))
 ema_summary_pp$days_with_symp_s <- factor(ema_summary_pp$days_with_symp_s,levels=c("no symptoms","1-4","5-8","9-12","all the time"))
 
-
 # bar plot of pain prevalence per group
 library(ggpattern)
 ema_summary_groups <- ema_summary_pp %>%
@@ -343,6 +342,161 @@ ggplot(ema_summary_groups2,aes(x=days_with_symp_s,y=n,
     axis.text = element_text(size = 14)
   ) 
 
+#----------------------------------------------------------------------------------
+#                               alternative graphs
+#         pain frequency, symptom frequency, intensity, interference
+#----------------------------------------------------------------------------------
+# pain frequency
+ggplot(ema_summary_pp,aes(x = pain_bin_sum,group=as.factor(CP_nonCP_healthy),
+                          pattern=as.factor(CP_nonCP_healthy),
+                          linetype=as.factor(CP_nonCP_healthy)))+
+  xlim(1,14)+
+  geom_density_pattern(
+    pattern_size = 0.5,
+    pattern_density = 0.1,
+    pattern_spacing = 0.05)+
+  scale_pattern_manual(values = c("none","circle","stripe"))+
+  scale_linetype_manual(values = c("twodash","dashed","solid"))+
+  labs(x = "Pain frequency")+
+  scale_x_continuous(breaks = 0:14)+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.x = element_blank()
+  )
+
+# symptom frequency
+ggplot(ema_summary_pp,aes(x = symptoms_bin_sum,group=as.factor(CP_nonCP_healthy),
+                          pattern=as.factor(CP_nonCP_healthy),
+                          linetype=as.factor(CP_nonCP_healthy)))+
+  xlim(1,14)+
+  geom_density_pattern(
+    pattern_size = 0.5,
+    pattern_density = 0.1,
+    pattern_spacing = 0.05)+
+  scale_pattern_manual(values = c("none","circle","stripe"))+
+  scale_linetype_manual(values = c("twodash","dashed","solid"))+
+  labs(x = "Symptom frequency")+
+  scale_x_continuous(breaks = 0:14)+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.x = element_blank()
+  )
+
+# intensity
+ggplot(ema_summary_pp,aes(x = pain_intensity_max_mean_mean,group=as.factor(CP_nonCP_healthy),
+                          pattern=as.factor(CP_nonCP_healthy),
+                          linetype=as.factor(CP_nonCP_healthy)))+
+  geom_density_pattern(
+    pattern_size = 0.5,
+    pattern_density = 0.1,
+    pattern_spacing = 0.05)+
+  scale_pattern_manual(values = c("none","circle","stripe"))+
+  scale_linetype_manual(values = c("twodash","dashed","solid"))+
+  labs(x = "Pain intensity")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.x = element_blank()
+  )
+
+ggplot(ema_summary_pp,aes(x = pain_interference_max_mean_mean,group=as.factor(CP_nonCP_healthy),
+                          pattern=as.factor(CP_nonCP_healthy),
+                          linetype=as.factor(CP_nonCP_healthy)))+
+  geom_density_pattern(
+    pattern_size = 0.5,
+    pattern_density = 0.1,
+    pattern_spacing = 0.05)+
+  scale_pattern_manual(values = c("none","circle","stripe"))+
+  scale_linetype_manual(values = c("twodash","dashed","solid"))+
+  labs(x = "Pain interference")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.x = element_blank()
+  )
+
+#----------------------------------------------------------------------------------
+#                               alternative BAR graphs
+#         pain frequency, symptom frequency, intensity, interference
+#----------------------------------------------------------------------------------
+
+ema_summary_pp$groups <- factor(ifelse(ema_summary_pp$CP_nonCP_healthy==0,"no illness",
+                                       ifelse(ema_summary_pp$CP_nonCP_healthy==1,"chronic illness",
+                                              "chronic pain")),
+                                levels=c("no illness","chronic illness","chronic pain"))
+ggplot(ema_summary_pp,aes(x=groups,y=pain_bin_sum))+
+  geom_jitter(size=.75,width=0.2)+
+  stat_summary(fun=mean,
+               geom="point",
+               size=6,
+               shape=18,
+               color="firebrick")+
+  stat_summary(fun.data=mean_sdl,
+               fun.args = list(mult=1),
+               geom="errorbar",
+               width=.1,
+               color="firebrick")+
+  scale_y_continuous(breaks = 0:14)+
+  labs(y="Pain Frequency (days)",x="")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.y = element_blank()
+  )
+
+ggplot(ema_summary_pp,aes(x=groups,y=symptoms_bin_sum))+
+  geom_jitter(size=.75,width=0.2)+
+  stat_summary(fun=mean,
+               geom="point",
+               size=6,
+               shape=18,
+               color="steelblue")+
+  stat_summary(fun.data=mean_sdl,
+               fun.args = list(mult=1),
+               geom="errorbar",
+               width=.1,
+               color="steelblue")+
+  scale_y_continuous(breaks = 0:14)+
+  labs(y="Symptom Frequency (days)",x="")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.y = element_blank()
+  )
+
+ggplot(ema_summary_pp,aes(x=groups,y=pain_intensity_max_mean_mean))+
+  geom_jitter(size=.75,width=0.2)+
+  stat_summary(fun=mean,
+               geom="point",
+               size=6,
+               shape=18,
+               color="firebrick")+
+  stat_summary(fun.data=mean_sdl,
+               fun.args = list(mult=1),
+               geom="errorbar",
+               width=.1,
+               color="firebrick")+
+  ylim(0,100)+
+  labs(y="Pain Intensity",x="")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.y = element_blank()
+  )
+
+ggplot(ema_summary_pp,aes(x=groups,y=pain_interference_max_mean_mean))+
+  geom_jitter(size=.75,width=0.2)+
+  stat_summary(fun=mean,
+               geom="point",
+               size=6,
+               shape=18,
+               color="firebrick")+
+  stat_summary(fun.data=mean_sdl,
+               fun.args = list(mult=1),
+               geom="errorbar",
+               width=.1,
+               color="firebrick")+
+  ylim(0,100)+
+  labs(y="Pain Interference",x="")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.y = element_blank()
+  )
 #----------------------------------------------------------------------------------
 #                               types of pain
 #----------------------------------------------------------------------------------
