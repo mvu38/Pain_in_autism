@@ -17,7 +17,7 @@ library(effectsize)
 # read the data
 setwd(getwd())
 ema_prompt <- read.csv("ema_byprompt.csv")
-demog_med <- read.csv('demog_med.csv')
+demog_med <- read.csv('demog_medical.csv')
 
 # treat gender in demog-med as described in the paper
 # notice that in raw data sex was coded as 1=male, 2 = female, but
@@ -45,11 +45,16 @@ ema_summary$symptoms_bin <- ifelse(ema_summary$no_symptoms_mean ==1,0,1)
 ema_summary$n_of_pains <- rowSums(ema_summary[,c("pain_stomach_max","headache_max",
                                                  "low_back_pain_max","limb_pain_max",
                                                  "pain_other_max")],na.rm=TRUE)
+# remove 0s
+ema_summary$n_of_pains <- ifelse(ema_summary$n_of_pains==0,NA,ema_summary$n_of_pains)
 
 # compute n of symptoms across the day
 ema_summary$n_of_symptoms <- rowSums(ema_summary[,c("faint_dizzy_max","tachycardia_max",
                                                     "nausea_max","weakness_max",
                                                     "migraine_max","fatigue_max","other_symptoms_max")],na.rm=TRUE)
+# remove 0s
+ema_summary$n_of_symptoms <- ifelse(ema_summary$n_of_symptoms==0,NA,ema_summary$n_of_symptoms)
+
 ###########
 # Aggregate EMA data per participant across days
 ###########
@@ -66,7 +71,7 @@ ema_summary_pp$proportion_days_with_symp <- ema_summary_pp$symptoms_bin_sum/ema_
 
 # add demographics
 ema_summary_pp <- merge(ema_summary_pp,demog_med[,c("record_id","meddx_CP","meddx_sum",
-                                                    "gender","age")],by="record_id")
+                                                    "gender","age","devdx_ADHD")],by="record_id")
 
 # add chronic pain/illness/none
 ema_summary_pp$CP_nonCP_healthy <- ifelse(ema_summary_pp$meddx_CP==0,
@@ -137,126 +142,16 @@ summary(painagegender2)
 #-----------------------------------------------------------------------------------------------------
 # ANOVAS comparing chronic pain, chronic illness, and no illness, were performed in SPSS, using 
 # datafile exported here:
-write.csv(ema_summary_pp,"pain_acute_chronic.csv")
 
+# sort the variables
+ema_summary_pp_select <- ema_summary_pp[,c("record_id","pain_bin_sum","symptoms_bin_sum",
+                                                  "pain_intensity_max_mean_mean","pain_interference_max_mean_mean","n_of_pains_mean",
+                                                  "n_of_symptoms_mean","pain_bin_n","proportion_days_with_pain","proportion_days_with_symp",
+                                                  "meddx_CP","meddx_sum","gender",
+                                                  "age","devdx_ADHD","CP_nonCP_healthy",
+                                                  "cisboyvsgirl","genderothervsboy","age_cent")]
+write.csv(ema_summary_pp_select,"pain_acute_chronic.csv")
 
-#-----------------------------------------------------------------------------------------------------
-#                                           Control group
-#-----------------------------------------------------------------------------------------------------
-# for ASD: from ema_summary compute first and second week separately
-# read a file with control group data
-# create a file with pain frequency and intensity, age, group (ASD, non-ASD), gender.
-# 2 measures: pain+symptoms; only pain (careful with 18 yo)
-
-# 18 yo
-control_ema <- read.csv('18_yo_daily_ema.csv')
-control_demog <- read.csv('18_yo_baselines_youth.csv')
-
-# select and parse data from 18yo
-control_ema$physical_symp_bin <- ifelse(control_ema$physical.symp_mean > 0,1,0)
-
-control_ema <- control_ema %>%
-  rowwise() %>%
-  mutate(pain_clean = max(stomach.ache_mean,headache_mean,lbp_mean,armslegspain_mean,other_mean)) 
-
-# clean out empty rows
-control_ema <- control_ema[is.na(control_ema$day_from_start_redcap)==FALSE, ]
-control_ema$pain_clean_bin <- ifelse(control_ema$pain_clean > 0,1,0)
-
-control_ema$pain_intensity <- ifelse(control_ema$pain_clean_bin==1,control_ema$symptom_intensity_mean,NA)
-
-control_ema_summary <- control_ema %>%
-  group_by(family_id) %>%
-  summarize_at(vars(physical_symp_bin,pain_clean_bin,symptom_intensity_mean,pain_intensity,day_from_start_redcap),
-               list(mean = ~mean(.,na.rm=TRUE),
-                    sum = ~sum(.,na.rm=TRUE),
-                    n = length))
-
-control_ema_summary <- merge(control_ema_summary[is.na(control_ema_summary$family_id)==FALSE, 
-                                                 c("family_id","physical_symp_bin_sum","pain_clean_bin_sum",
-                                                   "symptom_intensity_mean_mean","pain_intensity_mean",
-                                                   "day_from_start_redcap_n")],
-                             control_demog[,c("family_id","age","gender")],by="family_id") %>%
-  rename(record_id = family_id)
-
-control_ema_summary$group <- "control"
-
-hist(control_ema_summary$age)
-
-# RECODE GENDER (in the control sample, coding was different): 1 = woman, 2 = man, 3 = gender-diverse
-control_ema_summary$gender <- ifelse(control_ema_summary$gender==1,"boy",
-                                           ifelse(control_ema_summary$gender==2,"girl","TGD"))
-control_ema_summary$gender <- ifelse(is.na(control_ema_summary$gender),"TGD",control_ema_summary$gender)
-
-# in ASD data, parse pains to match the control sample
-ema_summary <- ema_summary %>%
-  rowwise() %>%
-  mutate(
-    physical.symp_mean = max(pain_stomach_mean,headache_mean,low_back_pain_mean,limb_pain_mean,pain_other_mean,
-                             faint_dizzy_mean,tachycardia_mean,nausea_mean,weakness_mean,other_symptoms_mean),
-    pain_clean = max(pain_stomach_mean,headache_mean,low_back_pain_mean,limb_pain_mean,pain_other_mean)
-  )
-
-ema_summary$physical_symp_bin <- ifelse(ema_summary$physical.symp_mean > 0,1,0)
-ema_summary$pain_clean_bin <- ifelse(ema_summary$pain_clean > 0,1,0)
-
-# in ASD sample, split the data into week 1 vs. week 2
-ema_summary$day_from_start_redcap <- as.numeric(
-  gsub("ema_day","",gsub("_arm_1","",ema_summary$redcap_event_name)))
-
-ema_summary$week <- ifelse(ema_summary$day_from_start_redcap < 8,1,2)
-
-asd_ema_summary <- ema_summary %>%
-  group_by(record_id,week) %>%
-  summarize_at(vars(physical_symp_bin,pain_clean_bin,pain_intensity_max_mean,day_from_start_redcap),
-               list(mean = ~mean(.,na.rm=TRUE),
-                    sum = ~sum(.,na.rm=TRUE),
-                    n = ~sum(!is.na(.x))))
-
-# figure out meddx for ASD
-asd_ema_summary <- merge(asd_ema_summary[is.na(asd_ema_summary$record_id)==FALSE, 
-                                         c("record_id","week","physical_symp_bin_sum","pain_clean_bin_sum",
-                                           "pain_intensity_max_mean_mean",
-                                           "day_from_start_redcap_n")],
-                         demog_med[,c("record_id","age","gender","meddx_sum","meddx_CP")],
-                         by="record_id")
-
-asd_ema_summary$group <- "autism"
-
-# reshape ASD for rep.measures
-asd_ema_wide <- reshape(asd_ema_summary,direction="wide",idvar = "record_id",
-                        timevar = "week")
-
-# pretty up
-asd_ema_wide <- rename(asd_ema_wide[,1:14],
-                       "age"="age.1","gender"="gender.1","group"="group.1",
-                       "pain_intensity_mean.1" = "pain_intensity_max_mean_mean.1",
-                       "pain_intensity_mean.2" = "pain_intensity_max_mean_mean.2")
-
-# for controls, duplicate variables to match asd's week 1 and 2
-control_ema_summary$pain_clean_bin_sum.2 <- control_ema_summary$pain_clean_bin_sum
-control_ema_summary$physical_symp_bin_sum.2 <- control_ema_summary$physical_symp_bin_sum
-control_ema_summary$pain_intensity_mean.2 <- control_ema_summary$pain_intensity_mean
-control_ema_summary$day_from_start_redcap_n.2 <- control_ema_summary$day_from_start_redcap_n
-
-control_ema_summary <- rename(control_ema_summary,
-                              "pain_clean_bin_sum.1"="pain_clean_bin_sum",
-                              "physical_symp_bin_sum.1"="physical_symp_bin_sum",
-                              "pain_intensity_mean.1"="pain_intensity_mean",
-                              "day_from_start_redcap_n.1"="day_from_start_redcap_n")
-
-# merge
-asd_ema_wide$symptom_intensity_mean_mean <- NA
-control_ema_summary$meddx_sum.1 <- NA
-control_ema_summary$meddx_CP.1 <- NA
-all_ema_summary <- rbind(asd_ema_wide,control_ema_summary)
-
-# compute centralized age for controls and ASD without illness
-all_ema_summary$age_cent <- ifelse(all_ema_summary$group=="control" | (all_ema_summary$group=="autism" & all_ema_summary$meddx_sum.1 ==0),
-                                   all_ema_summary$age - mean(all_ema_summary[all_ema_summary$group=="control" | (all_ema_summary$group=="autism" & all_ema_summary$meddx_sum.1 ==0), "age"],na.rm=TRUE),NA)
-
-# save file for analyses in SPSS
-write.csv(all_ema_summary,"asd to control comparison.csv")
 
 
 ##################################################################################################
@@ -289,132 +184,8 @@ ema_summary_groups <- ema_summary_pp %>%
   group_by(CP_nonCP_healthy,days_with_pain_s) %>%
   summarize_at(vars(record_id),list(n=length))
 
-ggplot(ema_summary_groups,aes(x=days_with_pain_s,y=n,
-                          group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          pattern_angle=as.factor(CP_nonCP_healthy)))+
-  geom_bar_pattern(
-    stat = "identity",
-    fill = "white",              # base fill (usually white for clarity),
-    color = "firebrick1",
-    pattern_fill = "firebrick1",      # pattern color
-    pattern_size = 0.01,
-    pattern_density = 0.1,
-    pattern_spacing = 0.02
-  )+
-  scale_pattern_manual(values = c("none","circle","stripe"))+
-  scale_pattern_angle_manual(values = c(0, 135, 45))+
-  theme_minimal() +
-  labs(x = "Days with Pain (out of 14)", y = "Number of Participants") +
-  ylim(0,30)+
-  theme(
-    axis.title.x = element_text(size = 16, margin = margin(t = 10)),  # top margin
-    axis.title.y = element_text(size = 16, margin = margin(r = 10)),  # right margin
-    axis.text = element_text(size = 14)
-  ) 
-
-# same for the symptom
-ema_summary_groups2 <- ema_summary_pp %>%
-  group_by(CP_nonCP_healthy,days_with_symp_s) %>%
-  summarize_at(vars(record_id),list(n=length))
-
-ggplot(ema_summary_groups2,aes(x=days_with_symp_s,y=n,
-                              group=as.factor(CP_nonCP_healthy),
-                              pattern=as.factor(CP_nonCP_healthy),
-                              pattern_angle=as.factor(CP_nonCP_healthy)))+
-  geom_bar_pattern(
-    stat = "identity",
-    fill = "white",              # base fill (usually white for clarity),
-    color = "steelblue",
-    pattern_fill = "steelblue",      # pattern color
-    pattern_size = 0.01,
-    pattern_density = 0.1,
-    pattern_spacing = 0.02
-  )+
-  scale_pattern_manual(values = c("none","circle","stripe"))+
-  scale_pattern_angle_manual(values = c(0, 135, 45))+
-  theme_minimal() +
-  labs(x = "Days with Symptoms (out of 14)", y = "Number of Participants") +
-  #ylim(0,30)+
-  theme(
-    axis.title.x = element_text(size = 16, margin = margin(t = 10)),  # top margin
-    axis.title.y = element_text(size = 16, margin = margin(r = 10)),  # right margin
-    axis.text = element_text(size = 14)
-  ) 
-
 #----------------------------------------------------------------------------------
-#                               alternative graphs
-#         pain frequency, symptom frequency, intensity, interference
-#----------------------------------------------------------------------------------
-# pain frequency
-ggplot(ema_summary_pp,aes(x = pain_bin_sum,group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          linetype=as.factor(CP_nonCP_healthy)))+
-  xlim(1,14)+
-  geom_density_pattern(
-    pattern_size = 0.5,
-    pattern_density = 0.1,
-    pattern_spacing = 0.05)+
-  scale_pattern_manual(values = c("none","circle","stripe"))+
-  scale_linetype_manual(values = c("twodash","dashed","solid"))+
-  labs(x = "Pain frequency")+
-  scale_x_continuous(breaks = 0:14)+
-  theme_minimal()+
-  theme(
-    panel.grid.minor.x = element_blank()
-  )
-
-# symptom frequency
-ggplot(ema_summary_pp,aes(x = symptoms_bin_sum,group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          linetype=as.factor(CP_nonCP_healthy)))+
-  xlim(1,14)+
-  geom_density_pattern(
-    pattern_size = 0.5,
-    pattern_density = 0.1,
-    pattern_spacing = 0.05)+
-  scale_pattern_manual(values = c("none","circle","stripe"))+
-  scale_linetype_manual(values = c("twodash","dashed","solid"))+
-  labs(x = "Symptom frequency")+
-  scale_x_continuous(breaks = 0:14)+
-  theme_minimal()+
-  theme(
-    panel.grid.minor.x = element_blank()
-  )
-
-# intensity
-ggplot(ema_summary_pp,aes(x = pain_intensity_max_mean_mean,group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          linetype=as.factor(CP_nonCP_healthy)))+
-  geom_density_pattern(
-    pattern_size = 0.5,
-    pattern_density = 0.1,
-    pattern_spacing = 0.05)+
-  scale_pattern_manual(values = c("none","circle","stripe"))+
-  scale_linetype_manual(values = c("twodash","dashed","solid"))+
-  labs(x = "Pain intensity")+
-  theme_minimal()+
-  theme(
-    panel.grid.minor.x = element_blank()
-  )
-
-ggplot(ema_summary_pp,aes(x = pain_interference_max_mean_mean,group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          linetype=as.factor(CP_nonCP_healthy)))+
-  geom_density_pattern(
-    pattern_size = 0.5,
-    pattern_density = 0.1,
-    pattern_spacing = 0.05)+
-  scale_pattern_manual(values = c("none","circle","stripe"))+
-  scale_linetype_manual(values = c("twodash","dashed","solid"))+
-  labs(x = "Pain interference")+
-  theme_minimal()+
-  theme(
-    panel.grid.minor.x = element_blank()
-  )
-
-#----------------------------------------------------------------------------------
-#                               alternative BAR graphs
+#                                BAR graphs
 #         pain frequency, symptom frequency, intensity, interference
 #----------------------------------------------------------------------------------
 
@@ -426,7 +197,7 @@ ggplot(ema_summary_pp,aes(x=groups,y=pain_bin_sum))+
   geom_jitter(size=.75,width=0.2)+
   stat_summary(fun=mean,
                geom="point",
-               size=6,
+               size=8,
                shape=18,
                color="firebrick")+
   stat_summary(fun.data=mean_sdl,
@@ -435,17 +206,18 @@ ggplot(ema_summary_pp,aes(x=groups,y=pain_bin_sum))+
                width=.1,
                color="firebrick")+
   scale_y_continuous(breaks = 0:14)+
-  labs(y="Pain Frequency (days)",x="")+
-  theme_minimal()+
+  labs(title="Pain Frequency in the autism group",y="Pain Frequency (days)",x="")+
+  theme_minimal(base_size = 14)+
   theme(
-    panel.grid.minor.y = element_blank()
+    panel.grid.minor.y = element_blank(),
+    plot.title = element_text(size = 14)
   )
 
 ggplot(ema_summary_pp,aes(x=groups,y=symptoms_bin_sum))+
   geom_jitter(size=.75,width=0.2)+
   stat_summary(fun=mean,
                geom="point",
-               size=6,
+               size=8,
                shape=18,
                color="steelblue")+
   stat_summary(fun.data=mean_sdl,
@@ -454,17 +226,18 @@ ggplot(ema_summary_pp,aes(x=groups,y=symptoms_bin_sum))+
                width=.1,
                color="steelblue")+
   scale_y_continuous(breaks = 0:14)+
-  labs(y="Symptom Frequency (days)",x="")+
-  theme_minimal()+
+  labs(title="Symptom frequency in the autsim group",y="Symptom Frequency (days)",x="")+
+  theme_minimal(base_size = 14)+
   theme(
-    panel.grid.minor.y = element_blank()
+    panel.grid.minor.y = element_blank(),
+    plot.title = element_text(size = 14)
   )
 
 ggplot(ema_summary_pp,aes(x=groups,y=pain_intensity_max_mean_mean))+
   geom_jitter(size=.75,width=0.2)+
   stat_summary(fun=mean,
                geom="point",
-               size=6,
+               size=8,
                shape=18,
                color="firebrick")+
   stat_summary(fun.data=mean_sdl,
@@ -473,17 +246,18 @@ ggplot(ema_summary_pp,aes(x=groups,y=pain_intensity_max_mean_mean))+
                width=.1,
                color="firebrick")+
   ylim(0,100)+
-  labs(y="Pain Intensity",x="")+
-  theme_minimal()+
+  labs(title="Pain intensity in the autism group",y="Pain Intensity",x="")+
+  theme_minimal(base_size = 14)+
   theme(
-    panel.grid.minor.y = element_blank()
+    panel.grid.minor.y = element_blank(),
+    plot.title = element_text(size = 14)
   )
 
 ggplot(ema_summary_pp,aes(x=groups,y=pain_interference_max_mean_mean))+
   geom_jitter(size=.75,width=0.2)+
   stat_summary(fun=mean,
                geom="point",
-               size=6,
+               size=8,
                shape=18,
                color="firebrick")+
   stat_summary(fun.data=mean_sdl,
@@ -492,10 +266,11 @@ ggplot(ema_summary_pp,aes(x=groups,y=pain_interference_max_mean_mean))+
                width=.1,
                color="firebrick")+
   ylim(0,100)+
-  labs(y="Pain Interference",x="")+
-  theme_minimal()+
+  labs(title="Pain interference in the autism group",y="Pain Interference",x="")+
+  theme_minimal(base_size = 14)+
   theme(
-    panel.grid.minor.y = element_blank()
+    panel.grid.minor.y = element_blank(),
+    plot.title = element_text(size = 14)
   )
 #----------------------------------------------------------------------------------
 #                               types of pain
@@ -529,18 +304,18 @@ pains_long <- rename(pains,"stomach pain"="pain_stomach_max_mean",
                      "low back pain"="low_back_pain_max_mean",
                      "limb pain"="limb_pain_max_mean",
                      "other pain"= "pain_other_max_mean",
-                     "max number of areas per day" = "percent_pains_day",
-                     "mean number of areas simultaneously" = "percent_pains_prompt",
+                     "number of areas per day" = "percent_pains_day",
+                     "number of areas simultaneously" = "percent_pains_prompt",
                      "overall (any pain)" = "pain_bin_mean") %>%
   select("record_id","new_id","stomach pain","headache","low back pain","limb pain", "other pain",
-         "mean number of areas simultaneously","max number of areas per day","overall (any pain)") %>%
+         "number of areas simultaneously","number of areas per day","overall (any pain)") %>%
   pivot_longer(cols = c("stomach pain","headache","low back pain","limb pain", "other pain",
-                        "mean number of areas simultaneously","max number of areas per day","overall (any pain)"),
+                        "number of areas simultaneously","number of areas per day","overall (any pain)"),
                names_to = "variable",
                values_to = "proportion")
 pains_long$variable <- factor(pains_long$variable,
                               levels=c("overall (any pain)","stomach pain","headache","low back pain","limb pain", "other pain",
-                                       "mean number of areas simultaneously","max number of areas per day"))
+                                       "number of areas simultaneously","number of areas per day"))
 pains_long$proportion <- ifelse(is.na(pains_long$proportion) |
                                   is.infinite(pains_long$proportion),0,pains_long$proportion)
 ggplot(pains_long, 
@@ -552,7 +327,7 @@ ggplot(pains_long,
   #scale_x_continuous(breaks = seq(1, 7, by = 1)) + #if either of your scales is continuous, this will parse it into tiles. If all categorical, no need.
   xlab("participant number (not record_id)") +
   ylab("")+
-  ggtitle("Proportion of days with:")
+  ggtitle("Proportion of days with pain/symptom in the autism group")
 
 #----------------------------------------------------------------------------------
 #                               types of symptom
@@ -604,38 +379,132 @@ ggplot(symptoms_long,
   ggtitle("Proportion of days with:")
 
 
-#-----------------------------------------------------------------------------------------------------------
-#                           pain intensity and interference
-#-----------------------------------------------------------------------------------------------------------
-# plot intensities
-ggplot(ema_summary_pp,aes(x = pain_intensity_max_mean_mean,group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          pattern_angle=as.factor(CP_nonCP_healthy)))+
-  #scale_fill_manual(values=c("white","grey","grey43"))+
-  ylim(0,0.03)+
-  geom_density_pattern(
-    pattern_size = 0.1,
-    pattern_density = 0.1,
-    pattern_spacing = 0.05)+
-  scale_pattern_manual(values = c("none","stripe","stripe"))+
-  scale_pattern_angle_manual(values = c(0, 135, 45))+
-  labs(x = "Mean Pain Intensity per participant")+
-  theme_minimal()
 
-# plot interference
-ggplot(ema_summary_pp,aes(x = pain_interference_max_mean_mean,group=as.factor(CP_nonCP_healthy),
-                          pattern=as.factor(CP_nonCP_healthy),
-                          pattern_angle=as.factor(CP_nonCP_healthy)))+
-  #scale_fill_manual(values=c("white","grey","grey43"))+
-  ylim(0,0.03)+
-  geom_density_pattern(
-    pattern_size = 0.1,
-    pattern_density = 0.1,
-    pattern_spacing = 0.05)+
-  scale_pattern_manual(values = c("none","stripe","stripe"))+
-  scale_pattern_angle_manual(values = c(0, 135, 45))+
-  labs(x = "Mean Pain Interference per participant")+
-  theme_minimal()
+##################################################################################################
+#                                     congrol group
+##################################################################################################
+# for ASD: from ema_summary compute first and second week separately
+# read a file with control group data
+# create a file with pain frequency and intensity, age, group (ASD, non-ASD), gender.
+# 2 measures: pain+symptoms; only pain (careful with 18 yo)
+
+# 18 yo
+control_ema <- read.csv('18_yo_daily_ema.csv')
+control_demog <- read.csv('18_yo_baselines_youth.csv')
+
+# select and parse data from 18yo
+control_ema$physical_symp_bin <- ifelse(control_ema$physical.symp_mean > 0,1,0)
+
+# clean out empty rows
+control_ema <- control_ema[is.na(control_ema$day_from_start_redcap)==FALSE, ]
+
+control_ema$n_of_pains <- ifelse(control_ema$stomach.ache_mean > 0,1,0) +
+  ifelse(control_ema$headache_mean > 0,1,0) +
+  ifelse(control_ema$lbp_mean > 0,1,0) +
+  ifelse(control_ema$armslegspain_mean > 0,1,0) 
+
+control_ema$n_of_symptoms <- ifelse(control_ema$dizziness_mean > 0,1,0) +
+  ifelse(control_ema$weakness_mean > 0,1,0) +
+  ifelse(control_ema$nausea_mean > 0,1,0) +
+  ifelse(control_ema$tachycardia_mean > 0,1,0)
+
+control_ema$symptom_clean_bin <- ifelse(control_ema$n_of_symptoms > 0,1,0)
+control_ema$pain_clean_bin <- ifelse(control_ema$n_of_pains > 0,1,0)
+control_ema$pain_intensity <- ifelse(control_ema$pain_clean_bin==1,control_ema$symptom_intensity_mean,NA)
+
+ema_summary$n_of_pains <- ifelse(ema_summary$pain_stomach_mean > 0,1,0)+
+  ifelse(ema_summary$headache_mean > 0,1,0) +
+  ifelse(ema_summary$limb_pain_mean > 0,1,0) +
+  ifelse(ema_summary$low_back_pain_mean > 0,1,0)
+
+ema_summary$n_of_symptoms <- ifelse(ema_summary$faint_dizzy_mean > 0,1,0) +
+  ifelse(ema_summary$weakness_mean > 0,1,0) +
+  ifelse(ema_summary$nausea_mean > 0,1,0) +
+  ifelse(ema_summary$tachycardia_mean > 0,1,0)
+
+ema_summary$pain_clean_bin <- ifelse(ema_summary$n_of_pains > 0,1,0)
+ema_summary$symptom_clean_bin <- ifelse(ema_summary$n_of_symptoms > 0,1,0)
+ema_summary$pain_intensity <- ifelse(ema_summary$pain_clean_bin==1,ema_summary$pain_intensity_max_mean,NA)
+
+control_ema_summary <- control_ema %>%
+  group_by(family_id) %>%
+  summarize_at(vars(pain_clean_bin,symptom_clean_bin,n_of_pains,n_of_symptoms,pain_intensity,day_from_start_redcap),
+               list(mean = ~mean(.,na.rm=TRUE),
+                    sum = ~sum(.,na.rm=TRUE),
+                    n = length))
+
+control_ema_summary <- merge(control_ema_summary[is.na(control_ema_summary$family_id)==FALSE, 
+                                                 c("family_id","pain_clean_bin_sum","symptom_clean_bin_sum",
+                                                   "pain_intensity_mean","n_of_pains_mean","n_of_symptoms_mean",
+                                                   "day_from_start_redcap_n")],
+                             control_demog[,c("family_id","age","gender")],by="family_id") %>%
+  rename(record_id = family_id)
+
+control_ema_summary$group <- "control"
+
+hist(control_ema_summary$age)
+
+# RECODE GENDER (in the control sample, coding was different): 1 = woman, 2 = man, 3 = gender-diverse
+control_ema_summary$gender <- ifelse(control_ema_summary$gender==1,"boy",
+                                     ifelse(control_ema_summary$gender==2,"girl","TGD"))
+control_ema_summary$gender <- ifelse(is.na(control_ema_summary$gender),"TGD",control_ema_summary$gender)
+
+# in ASD sample, split the data into week 1 vs. week 2
+ema_summary$day_from_start_redcap <- as.numeric(
+  gsub("ema_day","",gsub("_arm_1","",ema_summary$redcap_event_name)))
+
+ema_summary$week <- ifelse(ema_summary$day_from_start_redcap < 8,1,2)
+
+asd_ema_summary <- ema_summary %>%
+  group_by(record_id,week) %>%
+  summarize_at(vars(pain_clean_bin,symptom_clean_bin,n_of_pains,n_of_symptoms,pain_intensity,day_from_start_redcap),
+               list(mean = ~mean(.,na.rm=TRUE),
+                    sum = ~sum(.,na.rm=TRUE),
+                    n = ~sum(!is.na(.x))))
+
+# figure out meddx for ASD
+asd_ema_summary <- merge(asd_ema_summary[is.na(asd_ema_summary$record_id)==FALSE, 
+                                         c("record_id","week","pain_clean_bin_sum","symptom_clean_bin_sum",
+                                           "pain_intensity_mean","n_of_pains_mean","n_of_symptoms_mean",
+                                           "day_from_start_redcap_n")],
+                         demog_med[,c("record_id","age","gender","meddx_sum","meddx_CP")],
+                         by="record_id")
+
+asd_ema_summary$group <- "autism"
+
+# reshape ASD for rep.measures
+asd_ema_wide <- reshape(asd_ema_summary,direction="wide",idvar = "record_id",
+                        timevar = "week")
+
+# pretty up
+asd_ema_wide <- rename(asd_ema_wide[,1:18],
+                       "age"="age.1","gender"="gender.1","group"="group.1")
+
+# for controls, duplicate variables to match asd's week 1 and 2
+control_ema_summary$pain_clean_bin_sum.2 <- control_ema_summary$pain_clean_bin_sum
+control_ema_summary$symptom_clean_bin_sum.2 <- control_ema_summary$symptom_clean_bin_sum
+control_ema_summary$pain_intensity_mean.2 <- control_ema_summary$pain_intensity_mean
+control_ema_summary$n_of_pains_mean.2 <- control_ema_summary$n_of_pains_mean
+control_ema_summary$n_of_symptoms_mean.2 <- control_ema_summary$n_of_symptoms_mean
+control_ema_summary$day_from_start_redcap_n.2 <- control_ema_summary$day_from_start_redcap_n
+
+control_ema_summary <- rename(control_ema_summary,
+                              "pain_clean_bin_sum.1"="pain_clean_bin_sum",
+                              "symptom_clean_bin_sum.1"="symptom_clean_bin_sum",
+                              "pain_intensity_mean.1"="pain_intensity_mean",
+                              "n_of_pains_mean.1" = "n_of_pains_mean",
+                              "n_of_symptoms_mean.1" = "n_of_symptoms_mean",
+                              "day_from_start_redcap_n.1"="day_from_start_redcap_n")
+
+# merge
+control_ema_summary$meddx_sum.1 <- NA
+control_ema_summary$meddx_CP.1 <- NA
+all_ema_summary <- rbind(asd_ema_wide,control_ema_summary)
+
+# compute centralized age for controls and ASD without illness
+all_ema_summary$age_cent <- ifelse(all_ema_summary$group=="control" | (all_ema_summary$group=="autism" & all_ema_summary$meddx_sum.1 ==0),
+                                   all_ema_summary$age - mean(all_ema_summary[all_ema_summary$group=="control" | (all_ema_summary$group=="autism" & all_ema_summary$meddx_sum.1 ==0), "age"],na.rm=TRUE),NA)
+
 
 #---------------------------------------------------------------------------------------------------------------------------------------------
 #                               # plot control pains
@@ -674,23 +543,23 @@ pains_long_control <- rename(control_ema_summary2,"stomach pain"="stomach.ache_b
                              "headache"="headache_bin_mean",
                              "low back pain"="lbp_bin_mean",
                              "limb pain"="armslegspain_bin_mean",
-                             "other pain"= "pain_other_bin_mean",
+                             "other"= "pain_other_bin_mean",
                              "number of areas per day" = "n_of_pains_max",
                              "overall (any pain)" = "pain_present_mean",
                              "weakness" = "weakness_bin_mean",
                              "nausea" = "nausea_bin_mean",
                              "tachycardia" = "tachycardia_bin_mean",
                              "dizziness" = "dizziness_bin_mean") %>%
-  select("family_id","new_id","stomach pain","headache","low back pain","limb pain", "other pain",
+  select("family_id","new_id","stomach pain","headache","low back pain","limb pain", "other",
          "number of areas per day","overall (any pain)") %>%
-  pivot_longer(cols = c("stomach pain","headache","low back pain","limb pain", "other pain",
+  pivot_longer(cols = c("stomach pain","headache","low back pain","limb pain", "other",
                         "number of areas per day","overall (any pain)"),
                names_to = "variable",
                values_to = "proportion")
 pains_long_control$proportion <- ifelse(pains_long_control$variable=="number of areas per day",
                                         pains_long_control$proportion/5,pains_long_control$proportion)
 pains_long_control$variable <- factor(pains_long_control$variable,
-                                      levels=c("overall (any pain)","stomach pain","headache","low back pain","limb pain", "other pain",
+                                      levels=c("overall (any pain)","stomach pain","headache","low back pain","limb pain", "other",
                                                "number of areas per day"))
 
 ggplot(pains_long_control, 
@@ -701,7 +570,7 @@ ggplot(pains_long_control,
   theme_minimal() +
   xlab("participant number (not record_id)") +
   ylab("") +
-  ggtitle("Proportion of days with:") +
+  ggtitle("Proportion of days with pain/symptom in the control group") +
   theme(
     legend.position = "bottom",
     legend.direction = "horizontal"
@@ -742,5 +611,5 @@ ggplot(pains_long_control2,
   )
 
 
-
-
+# save file for analyses in SPSS
+write.csv(all_ema_summary,"asd to control comparison rev.csv")
