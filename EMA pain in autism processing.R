@@ -178,11 +178,6 @@ ema_summary_pp$days_with_symp_s <- ifelse(ema_summary_pp$symptoms_bin_sum ==0, "
 ema_summary_pp$days_with_pain_s <- factor(ema_summary_pp$days_with_pain_s,levels=c("no pain","1-4","5-8","9-12","all the time"))
 ema_summary_pp$days_with_symp_s <- factor(ema_summary_pp$days_with_symp_s,levels=c("no symptoms","1-4","5-8","9-12","all the time"))
 
-# bar plot of pain prevalence per group
-library(ggpattern)
-ema_summary_groups <- ema_summary_pp %>%
-  group_by(CP_nonCP_healthy,days_with_pain_s) %>%
-  summarize_at(vars(record_id),list(n=length))
 
 #----------------------------------------------------------------------------------
 #                                BAR graphs
@@ -381,7 +376,7 @@ ggplot(symptoms_long,
 
 
 ##################################################################################################
-#                                     congrol group
+#                                     control group
 ##################################################################################################
 # for ASD: from ema_summary compute first and second week separately
 # read a file with control group data
@@ -437,7 +432,7 @@ control_ema_summary <- merge(control_ema_summary[is.na(control_ema_summary$famil
                                                  c("family_id","pain_clean_bin_sum","symptom_clean_bin_sum",
                                                    "pain_intensity_mean","n_of_pains_mean","n_of_symptoms_mean",
                                                    "day_from_start_redcap_n")],
-                             control_demog[,c("family_id","age","gender")],by="family_id") %>%
+                             control_demog,by="family_id") %>%
   rename(record_id = family_id)
 
 control_ema_summary$group <- "control"
@@ -496,9 +491,14 @@ control_ema_summary <- rename(control_ema_summary,
                               "n_of_symptoms_mean.1" = "n_of_symptoms_mean",
                               "day_from_start_redcap_n.1"="day_from_start_redcap_n")
 
-# merge
+# for merging, equate variables between the datasets by creating empty variables
 control_ema_summary$meddx_sum.1 <- NA
 control_ema_summary$meddx_CP.1 <- NA
+asd_ema_wide$SSRI_Exposed <- NA
+asd_ema_wide$Maternal_HAMD_3Trimester <- NA
+asd_ema_wide$autism.diagnosis.or.suspicion <- NA
+
+# merge
 all_ema_summary <- rbind(asd_ema_wide,control_ema_summary)
 
 # compute centralized age for controls and ASD without illness
