@@ -406,7 +406,10 @@ control_ema$n_of_symptoms <- ifelse(control_ema$dizziness_mean > 0,1,0) +
 control_ema$symptom_clean_bin <- ifelse(control_ema$n_of_symptoms > 0,1,0)
 control_ema$pain_clean_bin <- ifelse(control_ema$n_of_pains > 0,1,0)
 control_ema$pain_intensity <- ifelse(control_ema$pain_clean_bin==1,control_ema$symptom_intensity_mean,NA)
+control_ema$n_of_pains <- ifelse(control_ema$n_of_pains==0,NA,control_ema$n_of_pains)
+control_ema$n_of_symptoms <- ifelse(control_ema$n_of_symptoms==0,NA,control_ema$n_of_symptoms)
 
+# re-count n of pains for autistic participants not including "other" pain
 ema_summary$n_of_pains <- ifelse(ema_summary$pain_stomach_mean > 0,1,0)+
   ifelse(ema_summary$headache_mean > 0,1,0) +
   ifelse(ema_summary$limb_pain_mean > 0,1,0) +
@@ -420,6 +423,8 @@ ema_summary$n_of_symptoms <- ifelse(ema_summary$faint_dizzy_mean > 0,1,0) +
 ema_summary$pain_clean_bin <- ifelse(ema_summary$n_of_pains > 0,1,0)
 ema_summary$symptom_clean_bin <- ifelse(ema_summary$n_of_symptoms > 0,1,0)
 ema_summary$pain_intensity <- ifelse(ema_summary$pain_clean_bin==1,ema_summary$pain_intensity_max_mean,NA)
+ema_summary$n_of_pains <- ifelse(ema_summary$n_of_pains==0,NA,ema_summary$n_of_pains)
+ema_summary$n_of_symptoms <- ifelse(ema_summary$n_of_symptoms==0,NA,ema_summary$n_of_symptoms)
 
 control_ema_summary <- control_ema %>%
   group_by(family_id) %>%
